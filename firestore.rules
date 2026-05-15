@@ -1,0 +1,139 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Global Safety Net
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // Primitives
+    function incoming() { return request.resource.data; }
+    function existing() { return resource.data; }
+    function isSignedIn() { return request.auth != null && request.auth.token.email_verified != false; }
+    function isValidId(id) { return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$'); }
+
+    // Users
+    function isValidUser(data) {
+      return data.size() >= 4 
+        && data.email is string && data.email.size() <= 256
+        && data.totalXP is number
+        && data.currentLevel is number
+        && data.streakFreezeBalance is number;
+    }
+
+    match /users/{userId} {
+      allow read: if isSignedIn(); // Allow reading other user profiles to show friends
+      
+      allow create: if isSignedIn() 
+        && request.auth.uid == userId 
+        && isValidUser(incoming());
+        
+      allow update: if isSignedIn() 
+        && request.auth.uid == userId 
+        && isValidUser(incoming())
+        && incoming().diff(existing()).affectedKeys().hasOnly(['displayName', 'timezone', 'totalXP', 'currentLevel', 'streakFreezeBalance']);
+        
+      match /badges/{badgeId} {
+        function isValidBadge(data) {
+          return data.size() >= 2
+            && data.badgeId is string && data.badgeId.size() <= 128
+            && data.earnedAt == request.time;
+        }
+        allow read: if isSignedIn();
+        allow create: if isSignedIn() 
+          && request.auth.uid == userId 
+          && isValidBadge(incoming());
+      }
+    }
+
+    // Habits
+    function isValidHabit(data) {
+      return data.size() >= 7
+        && data.userId is string && data.userId.size() <= 128
+        && data.name is string && data.name.size() <= 100
+        && data.icon is string && data.icon.size() <= 50
+        && data.color is string && data.color.size() <= 50
+        && data.frequency is string && data.frequency.size() <= 50
+        && data.isCustom is bool
+        && data.currentStreak is number;
+    }
+
+    match /habits/{habitId} {
+      // Allow friends to read habits potentially, but we'll restrict to owner for security first
+      // Actually friends need to see progress. We'll allow read if isSignedIn.
+      allow read: if isSignedIn();
+      allow create: if isSignedIn()
+        && incoming().userId == request.auth.uid
+        && isValidHabit(incoming())
+        && incoming().createdAt == request.time
+        && incoming().updatedAt == request.time;
+      // Allow update of specific fields
+      allow update: if isSignedIn()
+        && existing().userId == request.auth.uid
+        && incoming().userId == existing().userId
+        && isValidHabit(incoming())
+        && incoming().updatedAt == request.time
+        && incoming().diff(existing()).affectedKeys().hasOnly(['name', 'icon', 'color', 'frequency', 'currentStreak', 'lastCompletedDate', 'updatedAt']);
+      allow delete: if isSignedIn() && existing().userId == request.auth.uid;
+    }
+
+    // Habit Logs
+    function isValidHabitLog(data) {
+      return data.size() >= 4
+        && data.userId is string && data.userId.size() <= 128
+        && data.habitId is string && data.habitId.size() <= 128
+        && data.localDate is string && data.localDate.size() <= 20
+        && data.completedAt == request.time;
+    }
+
+    match /habitLogs/{logId} {
+      allow read: if isSignedIn() && resource.data.userId == request.auth.uid;
+      allow create: if isSignedIn()
+        && incoming().userId == request.auth.uid
+        && isValidHabitLog(incoming())
+        && get(/databases/$(database)/documents/habits/$(incoming().habitId)).data.userId == request.auth.uid;
+    }
+
+    // Friendships
+    function isValidFriendship(data) {
+      return data.size() >= 3
+        && data.user1Id is string && data.user1Id.size() <= 128
+        && data.user2Id is string && data.user2Id.size() <= 128
+        && data.status is string && data.status in ['pending', 'accepted'];
+    }
+
+    match /friendships/{friendshipId} {
+      allow read: if isSignedIn() && (resource.data.user1Id == request.auth.uid || resource.data.user2Id == request.auth.uid);
+      allow create: if isSignedIn()
+        && (incoming().user1Id == request.auth.uid || incoming().user2Id == request.auth.uid)
+        && isValidFriendship(incoming());
+      allow update: if isSignedIn()
+        && (existing().user1Id == request.auth.uid || existing().user2Id == request.auth.uid)
+        && isValidFriendship(incoming())
+        && incoming().diff(existing()).affectedKeys().hasOnly(['status']);
+    }
+
+    // Nudges
+    function isValidNudge(data) {
+      return data.size() >= 6
+        && data.fromUserId is string && data.fromUserId.size() <= 128
+        && data.toUserId is string && data.toUserId.size() <= 128
+        && data.message is string && data.message.size() <= 500
+        && data.emoji is string && data.emoji.size() <= 10
+        && data.read is bool
+        && data.createdAt == request.time;
+    }
+
+    match /nudges/{nudgeId} {
+      allow read: if isSignedIn() && (resource.data.fromUserId == request.auth.uid || resource.data.toUserId == request.auth.uid);
+      allow create: if isSignedIn()
+        && incoming().fromUserId == request.auth.uid
+        && isValidNudge(incoming());
+      allow update: if isSignedIn()
+        && existing().toUserId == request.auth.uid
+        && isValidNudge(incoming())
+        && incoming().diff(existing()).affectedKeys().hasOnly(['read']);
+    }
+  }
+}

@@ -1,0 +1,111 @@
+{
+  "entities": {
+    "User": {
+      "title": "User",
+      "description": "User profile with gamification stats",
+      "type": "object",
+      "properties": {
+        "email": { "type": "string" },
+        "displayName": { "type": "string" },
+        "totalXP": { "type": "number" },
+        "currentLevel": { "type": "number" },
+        "streakFreezeBalance": { "type": "number" },
+        "timezone": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["email", "totalXP", "currentLevel", "streakFreezeBalance"]
+    },
+    "Habit": {
+      "title": "Habit",
+      "description": "A habit to track",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "name": { "type": "string" },
+        "icon": { "type": "string" },
+        "color": { "type": "string" },
+        "frequency": { "type": "string" },
+        "isCustom": { "type": "boolean" },
+        "currentStreak": { "type": "number" },
+        "lastCompletedDate": { "type": "string", "description": "YYYY-MM-DD or empty" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["userId", "name", "icon", "color", "frequency", "isCustom", "currentStreak"]
+    },
+    "HabitLog": {
+      "title": "HabitLog",
+      "description": "A completion log for a habit",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "habitId": { "type": "string" },
+        "localDate": { "type": "string", "description": "YYYY-MM-DD in user timezone" },
+        "completedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["userId", "habitId", "localDate", "completedAt"]
+    },
+    "UserBadge": {
+      "title": "UserBadge",
+      "description": "Earned badge",
+      "type": "object",
+      "properties": {
+        "badgeId": { "type": "string" },
+        "earnedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["badgeId", "earnedAt"]
+    },
+    "Friendship": {
+      "title": "Friendship",
+      "description": "Friendship link between users",
+      "type": "object",
+      "properties": {
+        "user1Id": { "type": "string" },
+        "user2Id": { "type": "string" },
+        "status": { "type": "string", "enum": ["pending", "accepted"] }
+      },
+      "required": ["user1Id", "user2Id", "status"]
+    },
+    "Nudge": {
+      "title": "Nudge",
+      "description": "Accountability nudge",
+      "type": "object",
+      "properties": {
+        "fromUserId": { "type": "string" },
+        "toUserId": { "type": "string" },
+        "habitId": { "type": "string" },
+        "message": { "type": "string" },
+        "emoji": { "type": "string" },
+        "read": { "type": "boolean" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["fromUserId", "toUserId", "message", "emoji", "read", "createdAt"]
+    }
+  },
+  "firestore": {
+    "users/{userId}": {
+      "schema": "User",
+      "description": "User profile data"
+    },
+    "users/{userId}/badges/{badgeId}": {
+      "schema": "UserBadge",
+      "description": "Badges earned by user"
+    },
+    "habits/{habitId}": {
+      "schema": "Habit",
+      "description": "Habit definitions"
+    },
+    "habitLogs/{logId}": {
+      "schema": "HabitLog",
+      "description": "Completion logs for habits"
+    },
+    "friendships/{friendshipId}": {
+      "schema": "Friendship",
+      "description": "Friendship status between two users"
+    },
+    "nudges/{nudgeId}": {
+      "schema": "Nudge",
+      "description": "Nudges sent between users"
+    }
+  }
+}
